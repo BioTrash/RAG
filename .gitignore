@@ -1,0 +1,26 @@
+# Created by venv; see https://docs.python.org/3/library/venv.html
+
+# ---------------------
+# Python Virtual Environment
+# ---------------------
+bin/
+include/
+lib/
+lib64/
+pyvenv.cfg
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Notebook checkpoints
+.ipynb_checkpoints
+
+# Logs
+*.log
+
+# VS Code
+.vscode/
+*.code-workspace
+.vscode/*
+!.vscode/settings.json
