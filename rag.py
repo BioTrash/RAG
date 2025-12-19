@@ -16,7 +16,7 @@ VECTOR_DB = []
 
 dataset = []
 
-def add_chunk_to_database(chunk):
+def call_to_embedding_server(chunk):
     payload = {
         "input": chunk
     }
@@ -27,6 +27,11 @@ def add_chunk_to_database(chunk):
     data = response.json()
     embedding = data["data"][0]["embedding"]
     
+    return embedding
+
+def add_chunk_to_database(chunk):
+    embedding = call_to_embedding_server(chunk)
+
     VECTOR_DB.append((chunk, embedding))
     
     #print("Embedding length:", len(embedding))
@@ -63,11 +68,22 @@ def cosine_similarity(a, b):
 #   
 #   norms can be thought of as arrows on a graph pointing from 0, 0, 0, and return is the difference in direction they are pointing in
 #   return is 1 || 0 || -1 with 1 implying same dirtection, 0 implying random direction but not opposite or the the same, and -1 being opposite direction
-#
-#
+
+def retrieve(query, top_n=3):
+    query_embedding = call_to_embedding_server(query)
+    
+    similarities = []
+    for chunk, embedding in VECTOR_DB:
+        similarity = cosine_similarity(query_embedding, embedding)
+        similarities.append((chunk, similarity))
+        
+    similarities.sort(key=lambda x: x[1], reverse=True)
+    
+    return similarities[:top_n]
 
 
 def main():
     load()
+    print(retrieve(input("Query: ")))
 
 main()
