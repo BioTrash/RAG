@@ -41,6 +41,31 @@ def load():
             add_chunk_to_database(chunk)
             print(f'Added chunk {i+1}/{len(dataset)} to the database')
         
+def cosine_similarity(a, b): 
+    dot_product = sum([x * y for x, y in zip(a, b)]) # Semantic similarity of chunks, obscured by magnitude i.e. length.
+    norm_a = sum([x ** 2 for x in a]) ** 0.5 # Normalizes chunk a length
+    norm_b = sum([x ** 2 for x in b]) ** 0.5 # Normalizes chunk b length
+    return dot_product / (norm_a * norm_b) # Measured semantic similarity 
+
+#   Example:
+#
+#   a = [1, 2, 3] (x, y, z)
+#   b = [4, 5, 6] (x, y, z) 
+#   
+#   list(zip(a,b)) --> [(1,4), (2,5), (3,6)]
+#   
+#   [x * y for x, y in zip(a, b)] --> 1*4, 2*5, 3*6 --> [4, 10, 18]
+#   
+#   dot_product --> 4 + 10 + 18 = 32
+#       
+#   norm_a == square of (1*1 + 2*2 + 3*3) == 3.7417 
+#   norm_b == square of (4*4 + 5*5 + 6*6) == 8.775
+#   
+#   norms can be thought of as arrows on a graph pointing from 0, 0, 0, and return is the difference in direction they are pointing in
+#   return is 1 || 0 || -1 with 1 implying same dirtection, 0 implying random direction but not opposite or the the same, and -1 being opposite direction
+#
+#
+
 
 def main():
     load()
