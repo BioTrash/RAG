@@ -16,6 +16,22 @@ VECTOR_DB = []
 
 dataset = []
 
+def call_to_chat_server(guide_prompt, user_query):
+    payload = {
+        "messages": [
+            {"role": "system", "content": guide_prompt},
+            {"role": "user", "content": user_query}
+        ]
+    }
+    
+    response = requests.post(CHAT_SERVER, json=payload)
+    response.raise_for_status() # try-catch HTTP err
+    
+    data = response.json()
+    reply = data["choices"][0]["message"]["content"]
+    
+    return reply
+
 def call_to_embedding_server(chunk):
     payload = {
         "input": chunk
@@ -84,6 +100,16 @@ def retrieve(query, top_n=3):
 
 def main():
     load()
-    print(retrieve(input("Query: ")))
-
+    input_query = input("Ask me a question about cats: ")
+    retrieved = retrieve(input_query)
+    
+    print("Retrieved: ")
+    for chunk, similiarity in retrieved:
+        print(f' - (similarity: {similiarity:.2f}) {chunk}')
+        
+    guide = f'"Use only the following pieces of context to answer the user query. Do not make any new information: {'\n'.join([f' - {chunk}' for chunk, similarity in retrieved])}"'
+    
+    print(call_to_chat_server(guide, input_query))
+    
+    
 main()
