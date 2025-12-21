@@ -16,45 +16,6 @@ VECTOR_DB = []
 
 dataset = []
 
-# Pre-Retrieval:
-#
-#   Potential Problems:
-#       Poorly worded queries
-#       Complex queries
-#       Ambigious queries
-#
-#   Potential Solutions:
-#       Expand original query into multiple queries in order to further the context (Multi-Query)
-#           Assign greater weight to original query
-#           Validate each query via LLM by a comparison to the original so as to reduce hallucination and increasce relevance
-#           Validate final responce-query via the same method as above
-#           Least-to-Most Prompting vs Chain-of-Thought Promting vs Chain-of-Verification Promting
-#               Least-to-Most runs the generated queries sequentially, using the answer to the previous one as the basis for the next one until a satifsying solution to the original query is reached
-#               Chain-of-Thought runs the generated queries in parallel, fusing them at the end (Unsuitable for smaller models)
-#               Chain-of-Verification generates queries on a draft-solution query instead of the original query itself (Unsuitable for smaller models)
-#       Rewrite the original query based on assumed meaning
-#           Prompt User for confirmation about assumed meaning if the rewriting is too semantically different from the original (Retrieval dependant)
-#       Generate hypothetical query for each chunk in the database (Unsuitable for smaller models)
-#           Leads to longer load time initially depending on chunk amount
-#           Focus on semantical similarity between original query and hypothetical query instead of between original query and chunk
-#       Generate a high-level concept of the original query, use both for retrieval and generate the answer based on both
-#
-#   Combined Solution:  
-#       Avoid parallel executions for the sake of performance on low-end hardware
-#       Determine query type (Orchestration-preferable)
-#           Skip to retrieval if it considered simple 
-#           Rewrite the original query if it is considered poorly worded 
-#           Generate a high-level concept if it is considered ambigious
-#           Employ Least-to-Most sequential prompting if it is considered complex
-#               If a query is considered multiple types, prioritize: Poorly Worded > Ambigious > Complex
-#       Recursively check type of the generated query unless it is considered simple.
-#           Set a max. amount of reccursions so as to avoid endless loops, long wait times and/or oversimplification
-#               If max. amount is reached, prompt the use for confirmation on final deduced prompt-meaning before retrieval
-#                   Upon rejection, clarification from user is asked, alternatively provided with the rejection, the process restarts but the original query is appended with the clarification.
-#           Temporarily save all generated final-queries at the end of each reccursion
-#           Validate generated querie's relevance and accuracy compared to the original querie at the end of each reccursion
-#               Go back to the final-query generated in the latest reccursion if current final-query is considered irrelevant and/or inaccurate and try again
-
 def call_to_chat_server(guide_prompt, user_query):
     payload = {
         "messages": [
@@ -84,7 +45,7 @@ def call_to_embedding_server(chunk):
     
     return embedding
 
-def add_chunk_to_database(chunk): 
+def add_chunk_to_database(chunk):
     embedding = call_to_embedding_server(chunk)
 
     VECTOR_DB.append((chunk, embedding))
