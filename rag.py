@@ -1,4 +1,5 @@
 import requests
+import json
 
 # ./llama-server -m ~/Git/llama.cpp/models/bge-base-en-v1.5-f32.gguf --embeddings --host 127.0.0.1 --port 8080 -c 2048 -ngl 99
 EMBEDDING_SERVER = "http://localhost:8080/v1/embeddings"
@@ -47,22 +48,44 @@ dataset = []
 #           Generate a high-level concept if it is considered ambigious
 #           Employ Least-to-Most sequential prompting if it is considered complex
 #               If a query is considered multiple types, prioritize: Poorly Worded > Ambigious > Complex
-#       Recursively check type of the generated query unless it is considered simple.
-#           Set a max. amount of reccursions so as to avoid endless loops, long wait times and/or oversimplification
-#               If max. amount is reached, prompt the use for confirmation on final deduced prompt-meaning before retrieval
-#                   Upon rejection, clarification from user is asked, alternatively provided with the rejection, the process restarts but the original query is appended with the clarification.
-#           Temporarily save all generated final-queries at the end of each reccursion
-#           Validate generated querie's relevance and accuracy compared to the original querie at the end of each reccursion
-#               Go back to the final-query generated in the latest reccursion if current final-query is considered irrelevant and/or inaccurate and try again
+#           Recursively check type of the generated query unless it is considered simple.
+#               Set a max. amount of reccursions so as to avoid endless loops, long wait times and/or oversimplification
+#                  If max. amount is reached, prompt the use for confirmation on final deduced prompt-meaning before retrieval
+#                      Upon rejection, clarification from user is asked, alternatively provided with the rejection, the process restarts but the original query is appended with the clarification.
+#             Temporarily save all generated final-queries at the end of each reccursion
+#             Validate generated querie's relevance and accuracy compared to the original querie at the end of each reccursion
+#                 Go back to the final-query generated in the latest reccursion if current final-query is considered irrelevant and/or inaccurate and try again
 
-def call_to_chat_server(guide_prompt, user_query):
+#   ToDo:
+#       Implement an LLM-Judge
+#           LLM Decides whether the User's prompt is Simple, Poorly Worded, Ambigious or Complex via internal reasoning
+#           LLM outputs a JSON-formated string, for consistency, with the determined type
+#           The determined type is stored in a local variable
+
+def llm_judge(query):
+    
+    with open('data/llm_query_classifier.json') as file:
+        classifier = json.load(file)
+        
+    guide = f'You are a classifier. Your job is to classify the USER query type. Here is the JSON-formated classifying instruction that you are to follow EXACTLY: {json.dumps(classifier)}'
+    
+    determination = call_to_chat_server(guide, query, 16)
+    
+    return determination
+
+
+def call_to_chat_server(guide_prompt, user_query, max_tokens:int=512, temperature:float=0.0):
+    
     payload = {
         "messages": [
             {"role": "system", "content": guide_prompt},
             {"role": "user", "content": user_query}
-        ]
+        ],
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "stop": ["<END_JSON>"]
     }
-    
+        
     response = requests.post(CHAT_SERVER, json=payload)
     response.raise_for_status() # try-catch HTTP err
     
@@ -84,10 +107,10 @@ def call_to_embedding_server(chunk):
     
     return embedding
 
-def add_chunk_to_database(chunk): 
+def add_chunk_to_database(chunk, database:list): 
     embedding = call_to_embedding_server(chunk)
 
-    VECTOR_DB.append((chunk, embedding))
+    database.append((chunk, embedding))
     
     #print("Embedding length:", len(embedding))
     #print("First 5 values:", embedding[:5])
@@ -98,7 +121,7 @@ def load():
         print(f'Loaded {len(dataset)} entries')
         
         for i, chunk in enumerate(dataset):
-            add_chunk_to_database(chunk)
+            add_chunk_to_database(chunk, VECTOR_DB)
             print(f'Added chunk {i+1}/{len(dataset)} to the database')
         
 def cosine_similarity(a, b): 
@@ -125,30 +148,31 @@ def cosine_similarity(a, b):
 #   return is 1 || 0 || -1 with 1 implying same dirtection, 0 implying random direction but not opposite or the the same, and -1 being opposite direction
 
 def retrieve(query, top_n=3):
-    query_embedding = call_to_embedding_server(query)
     
+    query_embedding = call_to_embedding_server(query)
     similarities = []
+
     for chunk, embedding in VECTOR_DB:
         similarity = cosine_similarity(query_embedding, embedding)
         similarities.append((chunk, similarity))
         
     similarities.sort(key=lambda x: x[1], reverse=True)
-    
     return similarities[:top_n]
 
 
 def main():
-    load()
-    input_query = input("Ask me a question about cats: ")
-    retrieved = retrieve(input_query)
+    #load()
+    input_query = input("Ask me something about cats: ") 
+    print(llm_judge(input_query))
     
-    print("Retrieved: ")
-    for chunk, similiarity in retrieved:
-        print(f' - (similarity: {similiarity:.2f}) {chunk}')
+    #retrieved = retrieve(input_query)
+    
+    #print("Retrieved: ")
+    #for chunk, similiarity in retrieved:
+    #    print(f' - (similarity: {similiarity:.2f}) {chunk}')
         
-    guide = f'"Use only the following pieces of context to answer the user query. Do not make any new information: {'\n'.join([f' - {chunk}' for chunk, similarity in retrieved])}"'
-    
-    print(call_to_chat_server(guide, input_query))
+    #guide = f'"Use only the following pieces of context to answer the user query. Do not make any new information: {'\n'.join([f' - {chunk}' for chunk, similarity in retrieved])}"'
+
     
     
 main()

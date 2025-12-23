@@ -1,0 +1,67 @@
+{
+  "name": "llm_query_classifier",
+  "description": "Specification for a classifier that labels user queries as SIMPLE, POORLY_WORDED, AMBIGUOUS, or COMPLEX.",
+  "output_format": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string",
+        "enum": ["SIMPLE", "POORLY_WORDED", "AMBIGUOUS", "COMPLEX"]
+      },
+      "endjson": {
+        "type": "string",
+        "const": "<END_JSON>"
+      }
+    },
+    "required": ["type", "endjson"],
+    "additionalProperties": false
+  },
+  "template_example": "{\"type\": \"COMPLEX\"}<END_JSON>",
+  "decision_order": [
+    "SIMPLE",
+    "POORLY_WORDED",
+    "AMBIGUOUS",
+    "COMPLEX"
+  ],
+  "labels": {
+    "SIMPLE": {
+      "definition": "Direct, factual, or closed-ended request containing all required entities and context. Can be answered in a single step.",
+      "characteristics": ["Single intent", "Clearly defined subject", "Straightforward syntax"],
+      "example": "What is the capital of France?"
+    },
+    "POORLY_WORDED": {
+      "definition": "Query with significant grammatical errors, heavy slang, or semantic noise that obscures intent. Intent may be recoverable but phrasing is fragmented.",
+      "characteristics": ["Typos or fragmented syntax", "Vague pronouns without antecedent", "Heavy slang or shorthand"],
+      "example": "u kno how fix comp? it just blue screens lol"
+    },
+    "AMBIGUOUS": {
+      "definition": "Grammatically correct but missing necessary context (location, time, target audience, or domain). Multiple valid interpretations exist.",
+      "characteristics": ["Underspecified parameters", "Multiple possible meanings", "Requires contextual clarifying question (e.g., 'Where? For whom?')"],
+      "example": "Book me a hotel for next weekend"
+    },
+    "COMPLEX": {
+      "definition": "Requires multi-step reasoning, calculations, or decomposition into sub-problems. The answer depends on sequential reasoning or planning.",
+      "characteristics": ["Multiple dependent steps", "Mathematical or logical chains", "Requires a roadmap to solve"],
+      "example": "Optimize a 3-month investment allocation across 5 assets given expected returns and constraints"
+    }
+  },
+  "heuristics": [
+    {
+      "name": "check_poorly_worded",
+      "description": "If the query contains severe grammatical errors, unreadable fragments, or pronouns with no antecedent, label POORLY_WORDED."
+    },
+    {
+      "name": "check_ambiguous",
+      "description": "If the query is well-formed but lacks critical context (time, location, user preference) and could mean multiple things, label AMBIGUOUS."
+    },
+    {
+      "name": "check_complex",
+      "description": "If fulfilling the query requires multi-step reasoning, calculations, or decomposing into sub-tasks, label COMPLEX."
+    },
+    {
+      "name": "fallback_simple",
+      "description": "If none of the above heuristics match, label SIMPLE."
+    }
+  ],
+  "usage_notes": "When responding, return ONLY a single JSON-formatted object matching output_format. Do not include explanatory text or additional fields. Example: {\"type\":\"SIMPLE\"}<END_JSON>."
+}
