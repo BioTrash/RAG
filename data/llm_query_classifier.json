@@ -7,13 +7,9 @@
       "type": {
         "type": "string",
         "enum": ["SIMPLE", "POORLY_WORDED", "AMBIGUOUS", "COMPLEX"]
-      },
-      "endjson": {
-        "type": "string",
-        "const": "<END_JSON>"
       }
     },
-    "required": ["type", "endjson"],
+    "required": ["type"],
     "additionalProperties": false
   },
   "template_example": "{\"type\": \"COMPLEX\"}<END_JSON>",
@@ -63,5 +59,5 @@
       "description": "If none of the above heuristics match, label SIMPLE."
     }
   ],
-  "usage_notes": "When responding, return ONLY a single JSON-formatted object matching output_format. Do not include explanatory text or additional fields. Example: {\"type\":\"SIMPLE\"}<END_JSON>."
+  "usage_notes": "When responding, return ONLY a single JSON-formatted object matching output_format. Do not include explanatory text or additional fields. Example: {\"type\":\"SIMPLE\"}<END_JSON>. Always put <END_JSON> at the end"
 }

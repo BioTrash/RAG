@@ -71,7 +71,24 @@ def llm_judge(query):
     
     determination = call_to_chat_server(guide, query, 16)
     
-    return determination
+    parsed = extract_json(determination)
+    query_type = parsed["type"]
+    
+    return query_type
+
+def extract_json(text):
+    start = text.find('{')
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == '{':
+            depth+=1
+        elif text[i] == '}':
+            depth-=1
+            if depth == 0:
+                candidate = text[start:i+1]
+                return json.loads(candidate)
+    
+    return None
 
 
 def call_to_chat_server(guide_prompt, user_query, max_tokens:int=512, temperature:float=0.0):
@@ -162,7 +179,7 @@ def retrieve(query, top_n=3):
 
 def main():
     #load()
-    input_query = input("Ask me something about cats: ") 
+    input_query = input("Query: ") 
     print(llm_judge(input_query))
     
     #retrieved = retrieve(input_query)
