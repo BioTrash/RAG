@@ -57,12 +57,20 @@ dataset = []
 #                 Go back to the final-query generated in the latest reccursion if current final-query is considered irrelevant and/or inaccurate and try again
 
 #   ToDo:
-#       Implement an LLM-Judge
+#       Implement an LLM-Judge (DONE)
 #           LLM Decides whether the User's prompt is Simple, Poorly Worded, Ambigious or Complex via internal reasoning
 #           LLM outputs a JSON-formated string, for consistency, with the determined type
 #           The determined type is stored in a local variable
+#       Type-Based Orchestration
+#           If SIMPLE skip to retrieval and generation
+#           if POORLY_WORDED prompt LLM to rewrite the query to the best of its abilities
+#           if AMBIGIOUS propmt LLM to generate a 'step-back' query
+#           if COMPLEX implement Least-To-Most prompting method
+#
+#
+#
 
-def llm_judge(query):
+def llm_judge(query): # Orchestration
     
     with open('data/llm_query_classifier.json') as file:
         classifier = json.load(file)
@@ -74,7 +82,25 @@ def llm_judge(query):
     parsed = extract_json(determination)
     query_type = parsed["type"]
     
-    return query_type
+    ALLOWED = {"SIMPLE", "POORLY_WORDED", "AMBIGUOUS", "COMPLEX"}
+    
+    if query_type not in ALLOWED:
+        return pathing(query)
+    else:
+        return pathing(query, query_type)
+
+def pathing(query, query_type:str="SIMPLE"):
+     
+    match query_type:
+        case "SIMPLE":
+            retrieved = retrieve(query)
+            
+            guide = f'"Use only the following pieces of context to answer the user query. Do not make any new information: {'\n'.join([f' - {chunk}' for chunk, similarity in retrieved])}"'
+        
+            return call_to_chat_server(guide, query)
+            
+
+        
 
 def extract_json(text):
     start = text.find('{')
@@ -178,7 +204,7 @@ def retrieve(query, top_n=3):
 
 
 def main():
-    #load()
+    load()
     input_query = input("Query: ") 
     print(llm_judge(input_query))
     
