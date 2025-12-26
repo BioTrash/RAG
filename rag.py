@@ -4,7 +4,7 @@ import json
 # ./llama-server -m ~/Git/llama.cpp/models/bge-base-en-v1.5-f32.gguf --embeddings --host 127.0.0.1 --port 8080 -c 2048 -ngl 99
 EMBEDDING_SERVER = "http://localhost:8080/v1/embeddings"
 
-# ./llama-server -m ~/Git/llama.cpp/models/Phi-3-mini-4k-instruct-fp16.gguf --host 127.0.0.1 --port 8081 -n 500 --gpu-layers 40 -sm none -mg 0 -c 4096
+# ./llama-server -m ~/Git/llama.cpp/models/Phi-3-mini-4k-instruct-fp16.gguf --host 127.0.0.1 --port 8081 -n 500 --gpu-layers 40 -sm none -mg 0 -c 4096 --cache-ram 0
 CHAT_SERVER = "http://localhost:8081/v1/chat/completions"
 
 # ../embeddings	                Generate embeddings
@@ -77,7 +77,7 @@ def llm_judge(query): # Orchestration
         
     guide = f'You are a classifier. Your job is to classify the USER query type. Here is the JSON-formated classifying instruction that you are to follow EXACTLY: {json.dumps(classifier)}'
     
-    determination = call_to_chat_server(guide, query, 16)
+    determination = call_to_chat_server(guide, query, 64)
     
     parsed = extract_json(determination)
     query_type = parsed["type"]
@@ -85,20 +85,29 @@ def llm_judge(query): # Orchestration
     ALLOWED = {"SIMPLE", "POORLY_WORDED", "AMBIGUOUS", "COMPLEX"}
     
     if query_type not in ALLOWED:
+        print("NOT IN ALLOWED")
+        print(f'"QUERY TYPE: "{query_type}')
         return pathing(query)
     else:
+        print("ALLOWED")
+        print(f'"QUERY TYPE: "{query_type}')
         return pathing(query, query_type)
 
 def pathing(query, query_type:str="SIMPLE"):
-     
     match query_type:
         case "SIMPLE":
+            print("CASE SIMPLE")
             retrieved = retrieve(query)
-            
+            if not retrieved:
+                print("No chunks retrieved from VECTOR_DB")
+                return "No context available."
+
             guide = f'"Use only the following pieces of context to answer the user query. Do not make any new information: {'\n'.join([f' - {chunk}' for chunk, similarity in retrieved])}"'
-        
-            return call_to_chat_server(guide, query)
+
             
+            answer = call_to_chat_server(" ", query)
+            print("LLM Answer:", answer)  # debug print
+            return answer         
 
         
 
@@ -117,7 +126,7 @@ def extract_json(text):
     return None
 
 
-def call_to_chat_server(guide_prompt, user_query, max_tokens:int=512, temperature:float=0.0):
+def call_to_chat_server(guide_prompt, user_query, max_tokens:int=512, temperature:float=0.1):
     
     payload = {
         "messages": [
@@ -125,14 +134,14 @@ def call_to_chat_server(guide_prompt, user_query, max_tokens:int=512, temperatur
             {"role": "user", "content": user_query}
         ],
         "max_tokens": max_tokens,
-        "temperature": temperature,
-        "stop": ["<END_JSON>"]
+        "temperature": temperature
     }
         
     response = requests.post(CHAT_SERVER, json=payload)
     response.raise_for_status() # try-catch HTTP err
     
     data = response.json()
+    print("Raw response:", json.dumps(data, indent=2))
     reply = data["choices"][0]["message"]["content"]
     
     return reply
@@ -191,15 +200,15 @@ def cosine_similarity(a, b):
 #   return is 1 || 0 || -1 with 1 implying same dirtection, 0 implying random direction but not opposite or the the same, and -1 being opposite direction
 
 def retrieve(query, top_n=3):
-    
     query_embedding = call_to_embedding_server(query)
+    
     similarities = []
-
     for chunk, embedding in VECTOR_DB:
         similarity = cosine_similarity(query_embedding, embedding)
         similarities.append((chunk, similarity))
         
     similarities.sort(key=lambda x: x[1], reverse=True)
+    
     return similarities[:top_n]
 
 
