@@ -4,7 +4,7 @@ import json
 # ./llama-server -m ~/Git/llama.cpp/models/bge-base-en-v1.5-f32.gguf --embeddings --host 127.0.0.1 --port 8080 -c 2048 -ngl 99
 EMBEDDING_SERVER = "http://localhost:8080/v1/embeddings"
 
-# ./llama-server -m ~/Git/llama.cpp/models/Phi-3-mini-4k-instruct-fp16.gguf --host 127.0.0.1 --port 8081 -n 500 --gpu-layers 40 -sm none -mg 0 -c 4096 --cache-ram 0
+# ./llama-server -m ~/Git/llama.cpp/models/Phi-3-mini-4k-instruct-fp16.gguf --host 127.0.0.1 --port 8081 -n 500 --gpu-layers 40 -sm none -mg 0 -c 4096
 CHAT_SERVER = "http://localhost:8081/v1/chat/completions"
 
 # ../embeddings	                Generate embeddings
@@ -102,12 +102,13 @@ def pathing(query, query_type:str="SIMPLE"):
                 print("No chunks retrieved from VECTOR_DB")
                 return "No context available."
 
+            print("Retrieved: ")
+            for chunk, similiarity in retrieved:
+                print(f' - (similarity: {similiarity:.2f}) {chunk}')
+                
             guide = f'"Use only the following pieces of context to answer the user query. Do not make any new information: {'\n'.join([f' - {chunk}' for chunk, similarity in retrieved])}"'
 
-            
-            answer = call_to_chat_server(" ", query)
-            print("LLM Answer:", answer)  # debug print
-            return answer         
+            return call_to_chat_server(guide, query)     
 
         
 
