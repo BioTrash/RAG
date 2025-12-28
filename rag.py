@@ -1,11 +1,12 @@
-import requests
-import json
+import requests, json, time
+
 
 # ./llama-server -m ~/Git/llama.cpp/models/bge-base-en-v1.5-f32.gguf --embeddings --host 127.0.0.1 --port 8080 -c 2048 -ngl 99
 EMBEDDING_SERVER = "http://localhost:8080/v1/embeddings"
 
-# ./llama-server -m ~/Git/llama.cpp/models/Phi-3-mini-4k-instruct-fp16.gguf --host 127.0.0.1 --port 8081 -n 500 --gpu-layers 40 -sm none -mg 0 -c 4096
+# ./llama-server -m ~/Git/llama.cpp/models/Phi-3-mini-4k-instruct-fp16.gguf --host 127.0.0.1 --port 808X --gpu-layers -1 -mg 0 -c 4096
 CHAT_SERVER = "http://localhost:8081/v1/chat/completions"
+CLASS_SERVER = "http://localhost:8082/v1/chat/completions"
 
 # ../embeddings	                Generate embeddings
 # ../v1/embeddings	            OpenAI-compatible embeddings
@@ -77,7 +78,7 @@ def llm_judge(query): # Orchestration
         
     guide = f'You are a classifier. Your job is to classify the USER query type. Here is the JSON-formated classifying instruction that you are to follow EXACTLY: {json.dumps(classifier)}'
     
-    determination = call_to_chat_server(guide, query, 64)
+    determination = call_to_chat_server(guide, query, 64, 0.1, CLASS_SERVER)
     
     parsed = extract_json(determination)
     query_type = parsed["type"]
@@ -86,27 +87,23 @@ def llm_judge(query): # Orchestration
     
     if query_type not in ALLOWED:
         print("NOT IN ALLOWED")
-        print(f'"QUERY TYPE: "{query_type}')
+        print(f'QUERY TYPE: {query_type}')
         return pathing(query)
     else:
         print("ALLOWED")
-        print(f'"QUERY TYPE: "{query_type}')
+        print(f'QUERY TYPE: {query_type}')
         return pathing(query, query_type)
 
 def pathing(query, query_type:str="SIMPLE"):
     match query_type:
         case "SIMPLE":
-            print("CASE SIMPLE")
             retrieved = retrieve(query)
-            if not retrieved:
-                print("No chunks retrieved from VECTOR_DB")
-                return "No context available."
-
-            print("Retrieved: ")
-            for chunk, similiarity in retrieved:
-                print(f' - (similarity: {similiarity:.2f}) {chunk}')
                 
-            guide = f'"Use only the following pieces of context to answer the user query. Do not make any new information: {'\n'.join([f' - {chunk}' for chunk, similarity in retrieved])}"'
+            guide = (
+                "Use only the following pieces of context to answer the user query. "
+                "Do not add new information.\n\n"
+                + "\n".join(f"- {chunk}" for chunk, _ in retrieved)
+            )
 
             return call_to_chat_server(guide, query)     
 
@@ -127,7 +124,7 @@ def extract_json(text):
     return None
 
 
-def call_to_chat_server(guide_prompt, user_query, max_tokens:int=512, temperature:float=0.1):
+def call_to_chat_server(guide_prompt, user_query, max_tokens:int=512, temperature:float=0.1, server=CHAT_SERVER):
     
     payload = {
         "messages": [
@@ -137,13 +134,16 @@ def call_to_chat_server(guide_prompt, user_query, max_tokens:int=512, temperatur
         "max_tokens": max_tokens,
         "temperature": temperature
     }
-        
-    response = requests.post(CHAT_SERVER, json=payload)
+    
+    response = requests.post(server, json=payload)
     response.raise_for_status() # try-catch HTTP err
+
     
     data = response.json()
     print("Raw response:", json.dumps(data, indent=2))
     reply = data["choices"][0]["message"]["content"]
+    
+    time.sleep(1.0)
     
     return reply
 
@@ -164,9 +164,6 @@ def add_chunk_to_database(chunk, database:list):
     embedding = call_to_embedding_server(chunk)
 
     database.append((chunk, embedding))
-    
-    #print("Embedding length:", len(embedding))
-    #print("First 5 values:", embedding[:5])
 
 def load():
     with open('data/cat-facts.txt') as file:
@@ -217,15 +214,5 @@ def main():
     load()
     input_query = input("Query: ") 
     print(llm_judge(input_query))
-    
-    #retrieved = retrieve(input_query)
-    
-    #print("Retrieved: ")
-    #for chunk, similiarity in retrieved:
-    #    print(f' - (similarity: {similiarity:.2f}) {chunk}')
-        
-    #guide = f'"Use only the following pieces of context to answer the user query. Do not make any new information: {'\n'.join([f' - {chunk}' for chunk, similarity in retrieved])}"'
-
-    
     
 main()
