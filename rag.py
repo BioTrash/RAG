@@ -4,9 +4,12 @@ import requests, json, time
 # ./llama-server -m ~/Git/llama.cpp/models/bge-base-en-v1.5-f32.gguf --embeddings --host 127.0.0.1 --port 8080 -c 2048 -ngl 99
 EMBEDDING_SERVER = "http://localhost:8080/v1/embeddings"
 
-# ./llama-server -m ~/Git/llama.cpp/models/Phi-3-mini-4k-instruct-fp16.gguf --host 127.0.0.1 --port 808X --gpu-layers -1 -mg 0 -c 4096
+# ./llama-server -m ~/Git/llama.cpp/models/MODEL_GGUF --host 127.0.0.1 --port 808X --gpu-layers -1 -mg 0 -c 4096
 CHAT_SERVER = "http://localhost:8081/v1/chat/completions"
 CLASS_SERVER = "http://localhost:8082/v1/chat/completions"
+REWRITE_SERVER = "http://localhost:8083/v1/chat/completions"
+AMBIGIOUS_SERVER = "http://localhost:8084/v1/chat/completions"
+COMPLEX_SERVER = "http://localhost:8085/v1/chat/completions"
 
 # ../embeddings	                Generate embeddings
 # ../v1/embeddings	            OpenAI-compatible embeddings
@@ -63,12 +66,12 @@ dataset = []
 #           LLM outputs a JSON-formated string, for consistency, with the determined type
 #           The determined type is stored in a local variable
 #       Type-Based Orchestration
-#           If SIMPLE skip to retrieval and generation
+#           If SIMPLE skip to retrieval and generation (DONE)
 #           if POORLY_WORDED prompt LLM to rewrite the query to the best of its abilities
 #           if AMBIGIOUS propmt LLM to generate a 'step-back' query
 #           if COMPLEX implement Least-To-Most prompting method
 #
-#
+#   
 #
 
 def llm_judge(query): # Orchestration
@@ -86,12 +89,10 @@ def llm_judge(query): # Orchestration
     ALLOWED = {"SIMPLE", "POORLY_WORDED", "AMBIGUOUS", "COMPLEX"}
     
     if query_type not in ALLOWED:
-        print("NOT IN ALLOWED")
-        print(f'QUERY TYPE: {query_type}')
+        print(f'NOT IN ALLOWED | QUERY TYPE: {query_type}')
         return pathing(query)
     else:
-        print("ALLOWED")
-        print(f'QUERY TYPE: {query_type}')
+        print(f'ALLOWED | QUERY TYPE: {query_type}')
         return pathing(query, query_type)
 
 def pathing(query, query_type:str="SIMPLE"):
@@ -99,15 +100,24 @@ def pathing(query, query_type:str="SIMPLE"):
         case "SIMPLE":
             retrieved = retrieve(query)
                 
-            guide = (
-                "Use only the following pieces of context to answer the user query. "
-                "Do not add new information.\n\n"
-                + "\n".join(f"- {chunk}" for chunk, _ in retrieved)
-            )
+            guide = f'Use only the following pieces of context to answer the user query. Do not make any new information: {'\n'.join([f' - {chunk}' for chunk, similarity in retrieved])}'
 
-            return call_to_chat_server(guide, query)     
-
+            return call_to_chat_server(guide, query)
         
+        case "POORLY_WORDED":
+            with open('data/llm_query_rewriter.json') as file: # Move out to a seprate file-loader instead of loading at each iteration
+                rewriter = json.load(file)
+                
+            guide = f'You are a rewriter. Your job is to rewrite the USER query. Here is the JSON-formated rewriting instruction that you are to follow EXACTLY: {json.dumps(rewriter)}'
+
+            response = call_to_chat_server(guide, query, 512, 0.1, REWRITE_SERVER)
+            
+            parsed = extract_json(response)
+            rewritten_query = parsed["rewritten_query"]
+            
+            return llm_judge(rewritten_query) 
+            
+                    
 
 def extract_json(text):
     start = text.find('{')
