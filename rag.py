@@ -67,9 +67,11 @@ dataset = []
 #           The determined type is stored in a local variable
 #       Type-Based Orchestration
 #           If SIMPLE skip to retrieval and generation (DONE)
-#           if POORLY_WORDED prompt LLM to rewrite the query to the best of its abilities
+#           if POORLY_WORDED prompt LLM to rewrite the query to the best of its abilities (DONE)
 #           if AMBIGIOUS propmt LLM to generate a 'step-back' query
 #           if COMPLEX implement Least-To-Most prompting method
+#       Forcefully restart server via terminal commands
+#           Create a INSTRUCTIONS_SERVER instead of a separate server for each JSON described task
 #
 #   
 #
@@ -97,14 +99,14 @@ def llm_judge(query): # Orchestration
 
 def pathing(query, query_type:str="SIMPLE"):
     match query_type:
-        case "SIMPLE":
+        case "SIMPLE": # Example: "What do cats eat?"
             retrieved = retrieve(query)
                 
             guide = f'Use only the following pieces of context to answer the user query. Do not make any new information: {'\n'.join([f' - {chunk}' for chunk, similarity in retrieved])}'
 
             return call_to_chat_server(guide, query)
         
-        case "POORLY_WORDED":
+        case "POORLY_WORDED": # Example: "kat no eeting in dayz now jus thair meow weerd y it liek dis??""
             with open('data/llm_query_rewriter.json') as file: # Move out to a seprate file-loader instead of loading at each iteration
                 rewriter = json.load(file)
                 
@@ -112,10 +114,19 @@ def pathing(query, query_type:str="SIMPLE"):
 
             response = call_to_chat_server(guide, query, 512, 0.1, REWRITE_SERVER)
             
-            parsed = extract_json(response)
+            parsed = extract_json(response) 
             rewritten_query = parsed["rewritten_query"]
             
-            return llm_judge(rewritten_query) 
+            return llm_judge(rewritten_query)
+        
+        case "AMBIGUOUS":
+            with open('data/llm_query_abstractor.json') as file: # Move out to a seprate file-loader instead of loading at each iteration
+                abstractor = json.load(file)
+                
+            abstractor_guide = f'You are an abstractor. Your job is to abstract the USER query. Here is the JSON-formated abstraction instruction that you are to follow EXACTLY: {json.dumps(abstractor)}'
+            
+            response = call_to_chat_server(abstractor_guide, query, 512, 0.1, AMBIGIOUS_SERVER)
+        
             
                     
 
@@ -153,7 +164,7 @@ def call_to_chat_server(guide_prompt, user_query, max_tokens:int=512, temperatur
     print("Raw response:", json.dumps(data, indent=2))
     reply = data["choices"][0]["message"]["content"]
     
-    time.sleep(1.0)
+    time.sleep(3.0) # Single GPU Multiple Llama Server Downtime.
     
     return reply
 

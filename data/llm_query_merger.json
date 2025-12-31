@@ -1,0 +1,54 @@
+{
+  "name": "llm_query_merger",
+  "description": "Specification for a lightweight LLM component that merges an original user query and an LLM-produced abstracted intent into a single, coherent merged query. The merged query must preserve the original query's concrete details while incorporating the high-level, neutral phrasing from the abstracted query. The merge must be written from the ground up (not a simple concatenation) and must not invent facts or assume missing context.",
+  "output_format": {
+    "type": "object",
+    "properties": {
+      "merged_query": {
+        "type": "string",
+        "description": "A single, fluent query that (1) preserves the concrete details of the original_query, (2) incorporates the neutral, high-level intent from abstracted_query, and (3) is written from scratch rather than by concatenating the two inputs."
+      }
+    },
+    "required": [
+      "merged_query"
+    ],
+    "additionalProperties": false
+  },
+  "template_example": "{\"merged_query\":\"Request assistance booking accommodations for next weekend.\"}",
+  "guiding_prompt": "Task: Given (A) the original user query and (B) the LLM-produced abstracted query, produce a single merged_query that fuses both inputs into a concise, fluent, and neutral formulation. The merged_query should: (1) preserve all concrete, explicit details present in the original query (dates, locations, named entities, numeric values, explicit constraints), (2) adopt the high-level, neutral framing from the abstracted query (e.g., 'request information about', 'request assistance with', 'compare options for'), and (3) be written from the ground up — not a verbatim concatenation or simple appending of A + B.\n\nHard rules:\n- Do NOT invent new facts, preferences, or context not present in either input.\n- Do NOT resolve ambiguous or missing parameters by assuming values (e.g., do not pick a location, time, currency, or product variant). Instead, preserve or surface the ambiguity in neutral language.\n- If the original contains specific details, keep them verbatim or normalized (e.g., 'tmrw' -> 'tomorrow', '5k' -> '$5,000').\n- If the abstracted query provides a useful neutral verb or framing, use that framing to shape the merged sentence (e.g., 'Request information about...', 'Request assistance with...').\n- If details conflict between the two inputs, preserve the original_query's concrete details and use the abstracted_query only for neutral framing; do NOT invent a reconciliation.\n\nOutput rules:\n- Return a JSON object that exactly matches output_format. Do not include commentary, explanations, or additional fields.\n",
+  "heuristics": [
+    {
+      "name": "preserve_concrete_details",
+      "description": "Copy explicit details (dates, places, named entities, numbers) from original_query into merged_query, normalizing common abbreviations."
+    },
+    {
+      "name": "apply_neutral_framing",
+      "description": "Use the abstracted_query's neutral intent verb or framing (e.g., 'request information', 'request assistance') to structure the merged sentence."
+    },
+    {
+      "name": "no_concatenation",
+      "description": "Do not produce merged_query by simply concatenating original_query + abstracted_query. Compose a new sentence that synthesizes both."
+    },
+    {
+      "name": "surface_ambiguity_not_assume",
+      "description": "If a required parameter is missing or ambiguous in the original, preserve that ambiguity in the merged phrasing (e.g., '(unspecified product)') rather than filling it in."
+    },
+    {
+      "name": "prioritize_original_on_conflict",
+      "description": "If the inputs conflict, keep the original_query's concrete details and only use abstracted_query for neutral framing or generalization."
+    }
+  ],
+  "constraints": {
+    "do_not": [
+      "add facts, preferences, or values not present in the original or abstracted inputs",
+      "choose between multiple plausible interpretations when the original is ambiguous",
+      "concatenate inputs verbatim (e.g., original + abstracted) as the merged result"
+    ],
+    "may": [
+      "normalize abbreviations and numeric formats",
+      "use parenthetical notes to indicate unspecified or ambiguous elements",
+      "reorder or rephrase components for clarity and downstream usefulness"
+    ]
+  },
+  "usage_notes": "When responding, return ONLY a single JSON object that matches output_format. Do not include explanatory text, metadata, or additional fields. Begin your response with '{'. Example: {\"merged_query\":\"Request assistance booking accommodations for next weekend.\"}."
+}
