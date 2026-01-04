@@ -1,15 +1,20 @@
 import requests, json, time
 
+from server_manager import LlamaServer
+
 
 # ./llama-server -m ~/Git/llama.cpp/models/bge-base-en-v1.5-f32.gguf --embeddings --host 127.0.0.1 --port 8080 -c 2048 -ngl 99
 EMBEDDING_SERVER = "http://localhost:8080/v1/embeddings"
 
 # ./llama-server -m ~/Git/llama.cpp/models/MODEL_GGUF --host 127.0.0.1 --port 808X --gpu-layers -1 -mg 0 -c 4096
-CHAT_SERVER = "http://localhost:8081/v1/chat/completions"
-CLASS_SERVER = "http://localhost:8082/v1/chat/completions"
-REWRITE_SERVER = "http://localhost:8083/v1/chat/completions"
-AMBIGIOUS_SERVER = "http://localhost:8084/v1/chat/completions"
-COMPLEX_SERVER = "http://localhost:8085/v1/chat/completions"
+CHAT_SERVER = "http://localhost:8082/v1/chat/completions"
+#CLASS_SERVER = "http://localhost:8082/v1/chat/completions"
+#REWRITE_SERVER = "http://localhost:8083/v1/chat/completions"
+#AMBIGIOUS_SERVER = "http://localhost:8084/v1/chat/completions"
+#COMPLEX_SERVER = "http://localhost:8085/v1/chat/completions"
+
+
+
 
 # ../embeddings	                Generate embeddings
 # ../v1/embeddings	            OpenAI-compatible embeddings
@@ -75,6 +80,8 @@ dataset = []
 #
 #   
 #
+    
+INSTRUCTION_SERVER = LlamaServer("./server_XPU.sh")
 
 def llm_judge(query): # Orchestration
     
@@ -83,7 +90,7 @@ def llm_judge(query): # Orchestration
         
     guide = f'You are a classifier. Your job is to classify the USER query type. Here is the JSON-formated classifying instruction that you are to follow EXACTLY: {json.dumps(classifier)}'
     
-    determination = call_to_chat_server(guide, query, 64, 0.1, CLASS_SERVER)
+    determination = call_to_chat_server(guide, query, 64, 0.1)
     
     parsed = extract_json(determination)
     query_type = parsed["type"]
@@ -106,13 +113,13 @@ def pathing(query, query_type:str="SIMPLE"):
 
             return call_to_chat_server(guide, query)
         
-        case "POORLY_WORDED": # Example: "kat no eeting in dayz now jus thair meow weerd y it liek dis??""
+        case "POORLY_WORDED": # Example: "kat no eeting in dayz now jus thair meow weerd y it liek dis??"
             with open('data/llm_query_rewriter.json') as file: # Move out to a seprate file-loader instead of loading at each iteration
                 rewriter = json.load(file)
                 
             guide = f'You are a rewriter. Your job is to rewrite the USER query. Here is the JSON-formated rewriting instruction that you are to follow EXACTLY: {json.dumps(rewriter)}'
-
-            response = call_to_chat_server(guide, query, 512, 0.1, REWRITE_SERVER)
+            
+            response = call_to_chat_server(guide, query, 512, 0.1)
             
             parsed = extract_json(response) 
             rewritten_query = parsed["rewritten_query"]
@@ -125,7 +132,7 @@ def pathing(query, query_type:str="SIMPLE"):
                 
             abstractor_guide = f'You are an abstractor. Your job is to abstract the USER query. Here is the JSON-formated abstraction instruction that you are to follow EXACTLY: {json.dumps(abstractor)}'
             
-            response = call_to_chat_server(abstractor_guide, query, 512, 0.1, AMBIGIOUS_SERVER)
+            response = call_to_chat_server(abstractor_guide, query, 512, 0.1)
         
             
                     
@@ -156,6 +163,8 @@ def call_to_chat_server(guide_prompt, user_query, max_tokens:int=512, temperatur
         "temperature": temperature
     }
     
+    INSTRUCTION_SERVER.restart()
+        
     response = requests.post(server, json=payload)
     response.raise_for_status() # try-catch HTTP err
 
@@ -232,6 +241,8 @@ def retrieve(query, top_n=3):
 
 
 def main():
+    
+    INSTRUCTION_SERVER.start()
     load()
     input_query = input("Query: ") 
     print(llm_judge(input_query))
