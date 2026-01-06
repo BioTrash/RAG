@@ -81,7 +81,7 @@ dataset = []
 #   
 #
     
-INSTRUCTION_SERVER = LlamaServer("./server_XPU.sh")
+INSTRUCTION_SERVER = LlamaServer()
 
 def llm_judge(query): # Orchestration
     
@@ -162,8 +162,6 @@ def call_to_chat_server(guide_prompt, user_query, max_tokens:int=512, temperatur
         "max_tokens": max_tokens,
         "temperature": temperature
     }
-    
-    INSTRUCTION_SERVER.restart()
         
     response = requests.post(server, json=payload)
     response.raise_for_status() # try-catch HTTP err
